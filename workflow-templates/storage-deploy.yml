@@ -1,0 +1,47 @@
+name: Storage Deploy on GKE
+
+on:
+  workflow_run:
+    workflows: ["Docker Build and Push"]
+    types:
+      - completed
+
+jobs:
+  initialize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Initialize
+        run: echo "Initialization job"
+
+  CD:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: deploy
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.1
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1.1.1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: setup-gke-gcloud-auth-plugin
+        uses: simenandre/setup-gke-gcloud-auth-plugin@v1.1.2
+
+      - name: kubeconfig
+        run: gcloud container clusters get-credentials my-gek-cluster --zone us-central1-c --project storage-app-0001
+
+      - name: Clone gcp-cicd-terraform repository
+        run: |
+          git clone https://github.com/igor-rl/gcp-cicd-terraform.git
+
+      - name: Deploy to Kubernetes cluster in Another Repository
+        uses: Azure/k8s-deploy@v4.9
+        with:
+          manifests: |
+            gcp-cicd-terraform/gcp/my-cluster-gke/k8s/projects/storage-app/${{ env.IMAGE_NAME }}/
+          images: |
+            docker.io/igorlage/${{ env.IMAGE_NAME }}:0.1.${{ github.run_number }}
